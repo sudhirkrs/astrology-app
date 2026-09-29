@@ -95,7 +95,17 @@ class DB:
             from psycopg.rows import dict_row
 
             # prepare_threshold=None keeps us compatible with Supabase's transaction pooler.
-            return psycopg.connect(self.url, row_factory=dict_row, prepare_threshold=None, connect_timeout=10)
+            # DATABASE_URL may list fallbacks separated by spaces (e.g. aws-1-… and aws-0-… pooler hosts);
+            # the first one that connects wins and is remembered.
+            last = None
+            for url in self.url.split():
+                try:
+                    conn = psycopg.connect(url, row_factory=dict_row, prepare_threshold=None, connect_timeout=10)
+                    self.url = url
+                    return conn
+                except psycopg.OperationalError as e:
+                    last = e
+            raise last
         conn = sqlite3.connect(self.path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
