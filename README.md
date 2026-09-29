@@ -8,6 +8,7 @@ website / one-liner ─► ICP research ─► prospects with buying signals ─
           CRM webhook ◄─ reply triage + drafted response ◄─ send from YOUR mailbox ◄─ human approval
 ```
 
+- **Deploy (Vercel + Supabase):** [docs/deploy.md](docs/deploy.md)
 - **Business docs:** [competitive analysis of Explee](docs/competitive-analysis.md) · [launch and marketing plan](docs/launch-and-marketing-plan.md)
 
 ## What it does
@@ -37,7 +38,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 .venv/bin/uvicorn pipewright.main:app
 ```
 
-Tests: `.venv/bin/python -m pytest -q`
+Tests: `.venv/bin/pip install -r requirements-dev.txt && .venv/bin/python -m pytest -q` (set `PIPEWRIGHT_TEST_PG_URL` to also run them against Postgres)
 
 ### Configuration
 
