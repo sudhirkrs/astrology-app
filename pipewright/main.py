@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import hmac
 import html
+import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 
+from . import auth
 from .agent import MockAgent, get_agent
+from .auth import current_user
 from .db import DB
 from .service import CREDITS, Pipewright, WorkflowError
 
@@ -76,75 +80,118 @@ def create_app(pw: Pipewright | None = None) -> FastAPI:
     def index():
         return FileResponse(STATIC / "index.html")
 
+    def own(user: dict, **ids) -> None:
+        if not pw.owns(user["id"], **ids):
+            raise HTTPException(404, "not found")
+
+    @app.get("/api/health")
+    def health():
+        """Public liveness check: confirms the database answers. Never returns data."""
+        try:
+            pw.db.one("SELECT 1 AS ok")
+            db_ok = True
+        except Exception:
+            db_ok = False
+        return {"ok": db_ok, "db": "postgres" if pw.db.pg else "sqlite",
+                "agent": "demo" if isinstance(pw.agent, MockAgent) else "claude", "auth": auth.enabled()}
+
+    @app.get("/api/config")
+    def config():
+        """Public: what the browser needs to start sign-in."""
+        return {"auth": auth.enabled(), "supabase_url": auth.SUPABASE_URL, "supabase_anon_key": auth.SUPABASE_ANON_KEY}
+
     @app.get("/api/meta")
-    def meta():
+    def meta(user: dict = Depends(current_user)):
         return {"agent": "demo" if isinstance(pw.agent, MockAgent) else "claude",
-                "dry_run": pw.mailer.dry_run, "credits": CREDITS}
+                "dry_run": pw.mailer.dry_run, "credits": CREDITS, "user": user["email"]}
 
     @app.get("/api/campaigns")
-    def campaigns():
-        return pw.db.all("SELECT id, name, website, status, created_at FROM campaigns ORDER BY id DESC")
+    def campaigns(user: dict = Depends(current_user)):
+        return pw.campaigns(user["id"])
 
     @app.post("/api/campaigns")
-    def create(body: CampaignIn):
-        return run(pw.create_campaign, body.model_dump())
+    def create(body: CampaignIn, user: dict = Depends(current_user)):
+        return run(pw.create_campaign, body.model_dump(), user["id"])
 
     @app.get("/api/campaigns/{cid}")
-    def get(cid: int):
+    def get(cid: int, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return run(pw.campaign, cid)
 
     @app.patch("/api/campaigns/{cid}")
-    def patch(cid: int, body: dict):
+    def patch(cid: int, body: dict, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
+        body.pop("owner_id", None)
         return run(pw.update_campaign, cid, body)
 
     @app.get("/api/campaigns/{cid}/prospects")
-    def prospects(cid: int):
+    def prospects(cid: int, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return pw.prospects(cid)
 
     @app.post("/api/campaigns/{cid}/prospects/discover")
-    def discover(cid: int, body: Count):
+    def discover(cid: int, body: Count, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return run(pw.discover, cid, body.count)
 
     @app.post("/api/campaigns/{cid}/prospects/import")
-    def import_csv(cid: int, body: CsvIn):
+    def import_csv(cid: int, body: CsvIn, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return run(pw.import_csv, cid, body.csv)
 
     @app.put("/api/prospects/{pid}/email")
-    def set_email(pid: int, body: EmailIn):
+    def set_email(pid: int, body: EmailIn, user: dict = Depends(current_user)):
+        own(user, prospect_id=pid)
         return run(pw.set_prospect_email, pid, body.email)
 
     @app.post("/api/campaigns/{cid}/drafts")
-    def draft(cid: int, body: Count):
+    def draft(cid: int, body: Count, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return run(pw.draft, cid, body.count)
 
     @app.get("/api/campaigns/{cid}/messages")
-    def messages(cid: int, status: str | None = None):
+    def messages(cid: int, status: str | None = None, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return pw.queue(cid, status)
 
     @app.patch("/api/messages/{mid}")
-    def edit(mid: int, body: EditIn):
+    def edit(mid: int, body: EditIn, user: dict = Depends(current_user)):
+        own(user, message_id=mid)
         return run(pw.edit_message, mid, body.subject, body.body)
 
     @app.post("/api/messages/{mid}/review")
-    def review(mid: int, body: ReviewIn):
+    def review(mid: int, body: ReviewIn, user: dict = Depends(current_user)):
+        own(user, message_id=mid)
         return run(pw.review, mid, body.approve, body.whole_sequence)
 
     @app.post("/api/campaigns/{cid}/send")
-    def send(cid: int):
+    def send(cid: int, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return run(pw.send, cid)
 
     @app.post("/api/campaigns/{cid}/replies")
-    def reply(cid: int, body: ReplyIn):
+    def reply(cid: int, body: ReplyIn, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return run(pw.record_reply, cid, body.from_email, body.text)
 
     @app.get("/api/campaigns/{cid}/stats")
-    def stats(cid: int):
+    def stats(cid: int, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return {**pw.stats(cid), "ledger": pw.ledger(cid)}
 
     @app.get("/api/campaigns/{cid}/export.csv", response_class=PlainTextResponse)
-    def export(cid: int):
+    def export(cid: int, user: dict = Depends(current_user)):
+        own(user, campaign_id=cid)
         return PlainTextResponse(pw.export_csv(cid), media_type="text/csv",
                                  headers={"Content-Disposition": f'attachment; filename="campaign-{cid}.csv"'})
+
+    @app.get("/api/cron/send", include_in_schema=False)
+    def cron_send(authorization: str | None = Header(default=None)):
+        """Vercel Cron calls this daily with `Authorization: Bearer $CRON_SECRET`."""
+        secret = os.environ.get("CRON_SECRET")
+        if not secret or not hmac.compare_digest(authorization or "", f"Bearer {secret}"):
+            raise HTTPException(401, "unauthorized")
+        return {"results": pw.send_all_due()}
 
     @app.api_route("/u/{token}", methods=["GET", "POST"], include_in_schema=False)
     def unsubscribe(token: str):

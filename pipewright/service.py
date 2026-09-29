@@ -73,7 +73,21 @@ class Pipewright:
             raise WorkflowError(f"campaign {cid} not found")
         return c
 
-    def create_campaign(self, data: dict) -> dict:
+    def campaigns(self, owner_id: str) -> list[dict]:
+        return self.db.all("SELECT id, name, website, status, created_at FROM campaigns WHERE owner_id = ? "
+                           "ORDER BY id DESC", (owner_id,))
+
+    def owns(self, owner_id: str, *, campaign_id: int | None = None, prospect_id: int | None = None,
+             message_id: int | None = None) -> bool:
+        if message_id is not None:
+            campaign_id = self.db.one("SELECT campaign_id FROM messages WHERE id = ?", (message_id,))
+        elif prospect_id is not None:
+            campaign_id = self.db.one("SELECT campaign_id FROM prospects WHERE id = ?", (prospect_id,))
+        if campaign_id is None:
+            return False
+        return self.db.one("SELECT owner_id FROM campaigns WHERE id = ?", (campaign_id,)) == owner_id
+
+    def create_campaign(self, data: dict, owner_id: str = "local") -> dict:
         if not (data.get("website") or data.get("description")):
             raise WorkflowError("give a website or a description of what you sell")
         icp = self.agent.build_icp(data.get("website", ""), data.get("description", ""))
@@ -83,7 +97,7 @@ class Pipewright:
         }
         values = {k: v for k, v in data.items() if k in allowed and v is not None}
         values.setdefault("name", data.get("sender_company") or data.get("website") or "New campaign")
-        cid = self.db.insert("campaigns", {**values, "icp": icp.model_dump(), "status": "active"})
+        cid = self.db.insert("campaigns", {**values, "owner_id": owner_id, "icp": icp.model_dump(), "status": "active"})
         self.db.charge(cid, "icp", CREDITS["icp"])
         return self.campaign(cid)
 
@@ -109,18 +123,15 @@ class Pipewright:
         status = dv.check_email(email, self.check_dns).status if email else "missing"
         if email and self.db.is_suppressed(email):
             status = "suppressed"
-        try:
-            pid = self.db.insert("prospects", {
+        signals = p.get("signals") or []
+        if isinstance(signals, str):  # CSV import: "a; b; c"
+            signals = [x.strip() for x in signals.split(";") if x.strip()]
+        return self.db.insert("prospects", {
                 "campaign_id": cid, "company": p.get("company", domain), "website": p.get("website", ""),
                 "domain": domain, "contact_name": p.get("contact_name", ""), "contact_title": p.get("contact_title", ""),
                 "email": email, "email_status": status, "why_fit": p.get("why_fit", ""),
-                "signals": p.get("signals", []), "fit_score": int(p.get("fit_score") or 0), "source": source,
-            })
-        except Exception as e:  # duplicate (campaign, domain, email)
-            if "UNIQUE" in str(e):
-                return None
-            raise
-        return pid
+                "signals": signals, "fit_score": int(p.get("fit_score") or 0), "source": source,
+        }, ignore_conflict=True)  # duplicate (campaign, domain, email) -> None
 
     def discover(self, cid: int, count: int = 10) -> list[dict]:
         c = self.campaign(cid)
@@ -264,12 +275,24 @@ class Pipewright:
                 body += dv.compliance_footer(c["sender_company"] or c["name"], c["postal_address"], unsub)
             sender = f"{c['sender_name']} <{c['sender_email']}>" if c["sender_name"] else c["sender_email"]
             self.mailer.send(sender, p["email"], m["subject"], body, unsub)
-            self.db.update("messages", m["id"], {"status": "sent", "sent_at": _ts(now)})
+            self.db.update("messages", m["id"], {"status": "sent", "sent_at": _ts(now),
+                                                 "sent_via": "dry_run" if self.mailer.dry_run else "smtp"})
             if m["kind"] != "reply":
                 self.db.update("prospects", p["id"], {"status": "contacted"})
             sent.append(m["id"])
         return {"sent": len(sent), "message_ids": sent, "remaining_today": max(budget - len(sent), 0),
                 "dry_run": self.mailer.dry_run}
+
+    def send_all_due(self, now: datetime | None = None) -> list[dict]:
+        """Daily scheduler entry point: send what's due for every active, send-ready campaign."""
+        results = []
+        for c in self.db.all("SELECT id FROM campaigns WHERE status = 'active' AND sender_email IS NOT NULL "
+                             "AND sender_email != '' AND postal_address IS NOT NULL AND postal_address != ''"):
+            try:
+                results.append({"campaign_id": c["id"], **self.send(c["id"], now)})
+            except WorkflowError as e:
+                results.append({"campaign_id": c["id"], "error": str(e)})
+        return results
 
     # -- replies ----------------------------------------------------------------
 
@@ -287,8 +310,7 @@ class Pipewright:
         self.db.update("prospects", p["id"], {"status": REPLY_STATUS[a.intent]})
 
         if a.intent != ReplyIntent.out_of_office:  # any real reply stops the automated sequence
-            with self.db.tx() as conn:
-                conn.execute("UPDATE messages SET status = 'skipped' WHERE prospect_id = ? AND kind = 'followup' "
+            self.db.execute("UPDATE messages SET status = 'skipped' WHERE prospect_id = ? AND kind = 'followup' "
                              "AND status IN ('pending_review', 'approved')", (p["id"],))
         if a.intent in (ReplyIntent.unsubscribe, ReplyIntent.not_interested):
             self.db.suppress(p["email"], a.intent.value)
@@ -320,22 +342,19 @@ class Pipewright:
         email = email_from_token(token)
         if email:
             self.db.suppress(email, "unsubscribe_link")
-            with self.db.tx() as conn:
-                conn.execute("UPDATE prospects SET status = 'unsubscribed' WHERE email = ?", (email,))
-                conn.execute("UPDATE messages SET status = 'skipped' WHERE status IN ('pending_review', 'approved') "
-                             "AND prospect_id IN (SELECT id FROM prospects WHERE email = ?)", (email,))
+            self.db.execute("UPDATE prospects SET status = 'unsubscribed' WHERE email = ?", (email,))
+            self.db.execute("UPDATE messages SET status = 'skipped' WHERE status IN ('pending_review', 'approved') "
+                            "AND prospect_id IN (SELECT id FROM prospects WHERE email = ?)", (email,))
         return email
 
     # -- reporting --------------------------------------------------------------
 
     def stats(self, cid: int) -> dict:
-        by_status = dict(self.db.conn.execute(
-            "SELECT status, COUNT(*) FROM prospects WHERE campaign_id = ? GROUP BY status", (cid,)).fetchall())
-        msgs = dict(self.db.conn.execute(
-            "SELECT status, COUNT(*) FROM messages WHERE campaign_id = ? GROUP BY status", (cid,)).fetchall())
+        by_status = self.db.pairs("SELECT status, COUNT(*) AS n FROM prospects WHERE campaign_id = ? GROUP BY status", (cid,))
+        msgs = self.db.pairs("SELECT status, COUNT(*) AS n FROM messages WHERE campaign_id = ? GROUP BY status", (cid,))
         contacted = sum(by_status.get(s, 0) for s in ("contacted", "replied", "interested", "nurture", "closed", "unsubscribed"))
         replied = sum(by_status.get(s, 0) for s in ("replied", "interested", "nurture", "closed", "unsubscribed"))
-        credits = self.db.one("SELECT COALESCE(SUM(credits), 0) FROM ledger WHERE campaign_id = ?", (cid,))
+        credits = int(self.db.one("SELECT COALESCE(SUM(credits), 0) AS c FROM ledger WHERE campaign_id = ?", (cid,)))
         return {
             "prospects": sum(by_status.values()), "prospects_by_status": by_status, "messages_by_status": msgs,
             "contacted": contacted, "replied": replied, "interested": by_status.get("interested", 0),

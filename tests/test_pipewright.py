@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -20,9 +21,22 @@ class FakeMailer:
         self.sent.append({"to": to, "subject": subject, "body": body})
 
 
-@pytest.fixture
-def pw(tmp_path):
-    return Pipewright(DB(str(tmp_path / "t.db")), MockAgent(), FakeMailer(), check_dns=False)
+PG_URL = os.environ.get("PIPEWRIGHT_TEST_PG_URL")  # e.g. postgresql://postgres@localhost:5433/pw
+
+
+def make_db(tmp_path, backend):
+    if backend == "sqlite":
+        return DB(str(tmp_path / "t.db"))
+    if not PG_URL:
+        pytest.skip("set PIPEWRIGHT_TEST_PG_URL to run Postgres tests")
+    db = DB(url=PG_URL)
+    db.execute("TRUNCATE ledger, replies, messages, prospects, campaigns, suppression RESTART IDENTITY CASCADE")
+    return db
+
+
+@pytest.fixture(params=["sqlite", "postgres"])
+def pw(tmp_path, request):
+    return Pipewright(make_db(tmp_path, request.param), MockAgent(), FakeMailer(), check_dns=False)
 
 
 def make_campaign(pw, **kw):
@@ -137,3 +151,31 @@ def test_api_smoke(tmp_path):
     assert stats["contacted"] == 1 and stats["credits_used"] > 0
     assert "company" in client.get(f"/api/campaigns/{c['id']}/export.csv").text
     assert client.post("/api/campaigns", json={}).status_code == 400
+
+
+def test_auth_isolates_owners_and_enforces_allow_list(tmp_path, monkeypatch):
+    from pipewright import auth
+
+    users = {"tok-a": {"id": "a", "email": "a@team.example"}, "tok-b": {"id": "b", "email": "b@team.example"},
+             "tok-x": {"id": "x", "email": "stranger@else.example"}}
+    monkeypatch.setattr(auth, "enabled", lambda: True)
+    monkeypatch.setattr(auth, "_lookup", lambda token: users.get(token))
+    monkeypatch.setenv("PIPEWRIGHT_ALLOWED_EMAILS", "@team.example")
+    client = TestClient(create_app(Pipewright(DB(str(tmp_path / "auth.db")), MockAgent(), FakeMailer(), check_dns=False)))
+    h = lambda t: {"Authorization": f"Bearer {t}"}
+
+    assert client.get("/api/campaigns").status_code == 401
+    assert client.get("/api/campaigns", headers=h("tok-x")).status_code == 403
+    c = client.post("/api/campaigns", json={"description": "x"}, headers=h("tok-a")).json()
+    assert [x["id"] for x in client.get("/api/campaigns", headers=h("tok-a")).json()] == [c["id"]]
+    assert client.get("/api/campaigns", headers=h("tok-b")).json() == []
+    assert client.get(f"/api/campaigns/{c['id']}", headers=h("tok-b")).status_code == 404
+    assert client.post(f"/api/campaigns/{c['id']}/send", headers=h("tok-b")).status_code == 404
+    assert client.get("/api/config").json()["auth"] is True
+
+
+def test_cron_requires_secret(tmp_path, monkeypatch):
+    client = TestClient(create_app(Pipewright(DB(str(tmp_path / "c.db")), MockAgent(), FakeMailer(), check_dns=False)))
+    monkeypatch.setenv("CRON_SECRET", "s3cret")
+    assert client.get("/api/cron/send").status_code == 401
+    assert client.get("/api/cron/send", headers={"Authorization": "Bearer s3cret"}).json() == {"results": []}

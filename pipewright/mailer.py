@@ -21,7 +21,8 @@ class Mailer:
         self.port = int(os.environ.get("PIPEWRIGHT_SMTP_PORT", "587"))
         self.user = os.environ.get("PIPEWRIGHT_SMTP_USER")
         self.password = os.environ.get("PIPEWRIGHT_SMTP_PASSWORD")
-        self.outbox = Path(os.environ.get("PIPEWRIGHT_OUTBOX", "outbox.jsonl"))
+        default_outbox = "/tmp/outbox.jsonl" if os.environ.get("VERCEL") else "outbox.jsonl"  # Vercel: only /tmp is writable
+        self.outbox = Path(os.environ.get("PIPEWRIGHT_OUTBOX", default_outbox))
 
     @property
     def dry_run(self) -> bool:
