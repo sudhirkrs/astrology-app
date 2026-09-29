@@ -6,6 +6,10 @@
       "includeFiles": "pipewright/**"
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
-  "crons": [{ "path": "/api/cron/send", "schedule": "30 3 * * *" }]
+  "crons": [
+    {
+      "path": "/api/cron/send",
+      "schedule": "30 3 * * *"
+    }
+  ]
 }
