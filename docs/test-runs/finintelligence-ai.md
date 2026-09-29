@@ -1,36 +1,49 @@
 # Test run: FinIntelligence AI (finintelligenceai.com)
 
-_Manual run of Pipewright's steps, September 2026. The site itself was unreachable from the build environment, so the ICP is based on the founder's one-line description:_
+_Manual run of Pipewright's steps, September 2026. The site was unreachable from the build environment, so the ICP is based on the founder's description:_
 > "Financial intelligence for companies building the future of finance. We turn thousands of signals across regulation, competitors, products, technology and markets into concise, decision-ready insight."
+> **Focus: foreign financial firms expanding into India.**
 
 ## 1. ICP (paste into "Edit as JSON")
 
 ```json
 {
-  "product_summary": "AI financial-intelligence service that turns regulation, competitor, product, technology and market signals into concise, decision-ready briefs for fintechs and financial institutions.",
+  "product_summary": "India market-entry intelligence for foreign financial firms: RBI, SEBI, IRDAI and IFSCA regulation, competitors, products, technology and market signals turned into concise, decision-ready briefs.",
   "value_props": [
-    "Know about competitor launches and regulatory changes (RBI, SEBI, IRDAI, NPCI) the week they happen, not the quarter after",
-    "Replaces hours of analyst reading with a short brief tied to your roadmap",
-    "Board- and investor-ready market context without hiring a strategy team"
+    "Know which licence path fits (NBFC, PA / PA-CB, insurance subsidiary, GIFT City IFSC) and what changed this month",
+    "A living map of Indian competitors, pricing and partners before committing capital",
+    "Board- and HQ-ready India briefs without building a local research team"
   ],
-  "target_industries": ["Fintech (lending, payments, wealth, insurtech)", "Digital banks and NBFCs", "Banking-as-a-service / fintech infrastructure", "Fintech-focused VCs"],
-  "company_size": "20-2,000 employees",
-  "geographies": ["India", "Singapore", "UAE", "United Kingdom"],
-  "buyer_titles": ["Founder / CEO", "Chief Strategy Officer", "Head of Strategy", "Head of Product", "Chief Compliance Officer", "Head of Corporate Development", "VC Partner / Principal (fintech)"],
+  "target_industries": [
+    "Foreign payments and cross-border fintechs (PA-CB applicants)",
+    "Foreign banks entering or increasing stakes in Indian banks",
+    "Global insurers and reinsurers (100% FDI allowed since Feb 2026)",
+    "Global asset managers and wealth platforms (incl. GIFT City IFSC)",
+    "Law, advisory and market-entry firms serving the above (channel partners)"
+  ],
+  "company_size": "200-100,000 employees (India entity often small in year 1)",
+  "geographies": ["UAE", "Singapore", "United Kingdom", "United States", "Japan", "European Union"],
+  "buyer_titles": ["India Country Head / CEO India", "Head of International Expansion", "Head of Strategy / Corporate Development", "Chief Compliance Officer (India or APAC)", "Head of Regulatory Affairs", "APAC Head of Partnerships"],
   "pain_points": [
-    "Regulatory changes land faster than a small team can read and interpret them",
-    "Competitor launches are discovered late, from customers or the press",
-    "Strategy and board decks take days of manual research"
+    "Indian regulation changes fast (new PA Master Direction Sept 2025, NBFC scale-based rules April 2026, FEMA Authorised Persons Regulations 2026, insurance FDI Feb 2026)",
+    "HQ has little visibility into Indian competitors and local partners",
+    "Consultant reports are expensive and out of date by the time they arrive"
   ],
   "buying_signals": [
-    "Just raised a round (new board, new plan to justify)",
-    "Entering a new market or country",
-    "Launching a new product line or getting a new licence",
-    "Hiring strategy, market-intelligence or regulatory-affairs roles",
-    "Directly affected by a recent regulator circular"
+    "RBI in-principle approval received, final authorisation pending",
+    "Announced acquisition of or stake in an Indian bank, NBFC or insurer",
+    "Announced an India JV, subsidiary or GIFT City entity",
+    "Hiring an India country head, compliance head or regulatory-affairs role",
+    "Speaking or exhibiting at Global Fintech Fest (Mumbai)"
   ],
-  "disqualifiers": ["Pre-product startups with no funding", "Non-financial companies", "Large banks with in-house research departments (long sales cycle, not a first target)"],
-  "search_queries": ["India fintech raises funding 2026", "fintech expands to Singapore UAE 2026", "NBFC acquires housing finance company 2026", "fintech hiring head of strategy India"]
+  "disqualifiers": ["Domestic Indian startups (not the ICP)", "Firms with no concrete India plans"],
+  "search_queries": [
+    "RBI in-principle authorisation payment aggregator cross border 2026",
+    "foreign bank acquires stake Indian bank 2026",
+    "insurer India wholly owned subsidiary 100% FDI",
+    "IFSCA GIFT City licence foreign fintech 2026",
+    "hiring country head India fintech"
+  ]
 }
 ```
 
@@ -38,45 +51,58 @@ _Manual run of Pipewright's steps, September 2026. The site itself was unreachab
 
 | # | Company | Why it fits | Signal (source) | Fit |
 |---|---|---|---|---|
-| 1 | **Spense** | Builds secured-credit infrastructure for banks, so it has to track RBI credit-card and lending rules closely | $2.8M seed led by Arkam Ventures, with Razorpay Ventures participating, July 2026; says it works with 7 banks ([Inc42](https://inc42.com/buzz/spense-raises-2-8-mn-from-arkam-ventures-to-build-secured-lending-infra/), [FinSMEs](https://www.finsmes.com/2026/07/spense-raises-2-8m-in-seed-funding.html)) | 90 |
-| 2 | **Weaver Services** | Housing-finance fintech in the middle of acquiring a regulated housing-finance company, with a heavy compliance and market-mapping load | ₹1,450 cr ($156M) raised, co-led by Premji Invest and Lightspeed; acquiring Centrum Housing Finance, March 2026 ([YourStory](https://yourstory.com/2026/03/housing-finance-platform-weaver-services-raises-rs-1450-cr), [Entrackr](https://entrackr.com/news/weaver-services-raises-rs-1450-cr-led-by-premji-invest-and-lightspeed-11224855)) | 88 |
-| 3 | **KreditBee** | Digital lender that has just become a unicorn; faces constant RBI digital-lending rule changes and competitive pressure | $220M Series E in H1 2026 ([Business Standard](https://www.business-standard.com/finance/news/india-s-fintech-sector-raises-2-bn-in-h1-2026-led-by-late-stage-funding-126071601258_1.html)) | 80 |
-| 4 | **Razorpay** | Expanding into Malaysia and Singapore, so it needs to understand new regulators and competitors | 2026 focus on international expansion and embedded finance ([UpForge](https://www.upforge.org/blog/fintech-startups-india-2026)) | 75 |
-| 5 | **Arkam Ventures** (VC) | Fintech-heavy VC; pre-investment market scans are the use case | Led Spense's seed round, July 2026 | 70 |
-| 6 | **CRED** | Very large round means new product bets, and its strategy team would use competitor and regulation tracking | $900M Series H, H1 2026 ([Business Standard](https://www.business-standard.com/finance/news/india-s-fintech-sector-raises-2-bn-in-h1-2026-led-by-late-stage-funding-126071601258_1.html)) | 60, since it may already have in-house research |
+| 1 | **Payoneer** | US cross-border payments firm moving from in-principle approval to a final RBI licence, under the new PA Master Direction | RBI in-principle authorisation as a cross-border payment aggregator (inward and outward), Jan 2026 ([Payoneer IR](https://investor.payoneer.com/news-releases/news-release-details/payoneer-receives-principle-authorization-cross-border-payment), [Business Standard](https://www.business-standard.com/companies/start-ups/industry-banking-finance-payoneer-india-gets-rbi-in-principle-approval-pa-cb-126012101106_1.html)) | 95 |
+| 2 | **Emirates NBD** | UAE bank that now controls an Indian listed bank. Needs continuous India competitor, regulatory and market intelligence for strategy and HQ reporting | Completed 60% of RBL Bank ($2.75B), 18 June 2026; RBI approval April 2026 ([Emirates NBD](https://www.emiratesnbd.com/en/media-center/emirates-nbd-to-acquire-majority-stake-in-rbl-bank), [Enterprise](https://enterpriseam.com/mena-india/2026/06/19/emirates-nbd-takes-control-of-rbl-bank-after-securing-60-stake/)) | 92 |
+| 3 | **Allianz** | Re-entering Indian insurance through Jio; needs a picture of the general and health insurance market and IRDAI changes | Allianz Jio Re began operations March 2026; 50:50 primary-insurance JV with Jio Financial Services announced April 2026 ([Allianz Jio Re](https://www.allianz.com/en/mediacenter/news/media-releases/financials/260326-allianz-jio-reinsurance-limited-commences-operations.html), [JV](https://www.allianz.com/en/mediacenter/news/media-releases/financials/260422-jio-financial-services-and-allianz-to-form-primary-insurance-joint-venture.html)) | 90 |
+| 4 | **Wise** | UK fintech in the same PA-CB licensing process, and exposed to the new FEMA Authorised Persons rules | RBI in-principle PA-CB (exports) approval ([Wise newsroom](https://newsroom.wise.com/en-CAS/250703-wise-granted-rbi-s-in-principle-approval-to-operate-as-cross-border-payment-aggregator/)) | 85 |
+| 5 | **SMBC** (Sumitomo Mitsui) | Japanese bank with a strategic stake in Yes Bank; tracks Indian banking competition and regulation | 24% stake in Yes Bank ([Risk Awareness](https://riskawareness.in/foreign-investment-indian-banking-emirates-nbd-rbl-smbc-yes-bank/)) | 80 |
+| 6 | **Global insurers weighing wholly owned Indian subsidiaries** | 100% FDI through the automatic route since 5 Feb 2026 opens full-ownership entry and JV buyouts | Policy change ([Bar & Bench](https://www.barandbench.com/view-point/indias-insurance-overhaul-what-the-100-fdi-regime-means-for-foreign-investors), [IndiaLaw](https://www.indialaw.in/blog/insurance/100-fdi-in-insurance-india/)). Run Pipewright discovery for named insurers in Indian JVs | 75 |
 
-**Named decision makers found in coverage:** Spense co-founders Pawan Kumar and Srinivas Krishnamurthy. Weaver co-founders Satrajit Siva Bhattacharya and Anil Kothuri.
-Emails are **not** included. Verify them with Pipewright's lookup and MX check, or with a data provider, before sending.
+**Channel partners (refer clients to you, or resell):** India market-entry and licensing advisors who already publish guides for foreign fintechs, such as [Beacon Filing](https://beaconfiling.com/industries/fintech) and [Khanna & Associates](https://khannaandassociates.com/blog/rbi-2026-regulatory-agenda-foreign-lenders-nbfcs/). A briefing that clients can white-label is an easy offer for them.
+
+**Event hook:** Global Fintech Fest, Mumbai, took place 8–11 Sept 2026 ([source](https://kpiasacademy.com/global-fintech-fest-2026/)). Foreign exhibitors and speakers there make a warm list for "following up after GFF" emails.
+
+No contact names or emails were verified. Target the **India Country Head** or the **APAC head of strategy or compliance**, found on LinkedIn, and check emails in Pipewright before sending.
 
 ## 3. Draft emails for review
 
-**To Pawan Kumar, Spense.** Subject: *spense + rbi changes*
-> Hi Pawan,
+**To the India Country Head (or APAC strategy lead), Payoneer.** Subject: *after the pa-cb nod*
+> Hi [Name],
 >
-> Congratulations on the seed round with Arkam. Building secured credit for 7 banks means every RBI circular on cards and secured lending lands on your desk too.
+> Congratulations on the RBI in-principle nod for cross-border PA. Getting to final authorisation now happens under the new PA Master Direction, while competitors like Razorpay and Juspay already hold PA-CB licences.
 >
-> FinIntelligence AI reads regulator, competitor and market updates for fintechs and sends a short brief on what changed and what it means for your roadmap. It replaces hours of reading each week.
+> FinIntelligence AI tracks Indian regulation, competitors and market moves for foreign financial firms, and sends short, decision-ready briefs to India and HQ teams.
 >
-> Would a sample brief on secured-credit and co-branded-card changes from the last 90 days be useful?
+> Would a free brief on the PA-CB landscape (who's licensed, pricing, recent RBI changes) help your next steering meeting?
 
-**To Satrajit Siva Bhattacharya, Weaver.** Subject: *centrum integration intel*
-> Hi Satrajit,
+**To the head of strategy or India integration, Emirates NBD.** Subject: *rbl: india market brief*
+> Hi [Name],
 >
-> Congratulations on the Premji and Lightspeed round and the Centrum Housing Finance acquisition. Taking on a regulated HFC usually brings a wave of NHB and RBI compliance changes, plus a new set of competitors to watch in tier II and III markets.
+> Closing the RBL deal in June made Emirates NBD the first foreign bank to control a listed Indian private bank. HQ will now want a steady read on Indian competitors, RBI changes and the UAE–India corridor.
 >
-> FinIntelligence AI turns those signals into a short weekly brief, so the team isn't stitching it together by hand.
+> FinIntelligence AI turns thousands of those signals into a concise weekly brief, so your India and Dubai teams work from the same picture.
 >
-> Open to a sample brief on affordable-housing-finance competitors and recent regulation?
+> Open to a sample brief on mid-size private-bank competitors and the last quarter's RBI changes?
 
-Follow-ups (+3 and +7 days): offer the free sample brief. Then close the loop by asking if someone in strategy or compliance is the better contact.
+**To the India or APAC strategy lead, Allianz.** Subject: *india insurance intel for the jio jv*
+> Hi [Name],
+>
+> With Allianz Jio Re live and the primary-insurance JV announced, the team is mapping a general and health market that 100% FDI is about to reshape.
+>
+> FinIntelligence AI tracks IRDAI changes, new foreign entrants and competitor products, and delivers them as short briefs.
+>
+> Would a sample brief on who's likely to enter under 100% FDI be useful?
 
-## 4. CSV to import into Pipewright (add verified emails first)
+Follow-ups (+3 and +7 days): offer the free sample brief. Then close the loop by asking whether India strategy or compliance owns this.
+
+## 4. CSV to import into Pipewright (add contacts and verified emails first)
 
 ```csv
 company,website,contact_name,contact_title,email
-Spense,,Pawan Kumar,Co-founder,
-Weaver Services,,Satrajit Siva Bhattacharya,Co-founder,
-KreditBee,https://www.kreditbee.in,,,
-Razorpay,https://razorpay.com,,,
+Payoneer,https://www.payoneer.com,,India Country Head,
+Emirates NBD,https://www.emiratesnbd.com,,Head of Strategy,
+Allianz,https://www.allianz.com,,Head of Strategy APAC,
+Wise,https://wise.com,,India Country Head,
+SMBC,https://www.smbc.co.jp,,India Strategy Lead,
+Beacon Filing,https://beaconfiling.com,,Founder,
 ```
-Spense and Weaver websites were not verified here, so fill them in before importing. Pipewright skips rows without a website or an email.
