@@ -3,7 +3,26 @@
 _Manual run of Pipewright's steps, September 2026. The newsletter's own description:_
 > "A free 5-minute read for NRIs managing money across two countries: accounts, taxes, property, retirement, and the move…" (by Finostock)
 
-**Goal: find sponsors and partners, not subscribers.** Cold-emailing individual NRIs to subscribe would be spam and would break DPDP, GDPR and CAN-SPAM rules. The companies that want to reach NRIs are the right people to email.
+**Goal: find partners now and sponsors later, never individual subscribers.** Cold-emailing individual NRIs to subscribe would be spam and would break DPDP, GDPR and CAN-SPAM rules. The companies that want to reach NRIs are the right people to email.
+
+## 0. Where you are now: 9 subscribers (UAE, US, India)
+
+That's too early to sell sponsorships. Sponsors buy reach and proof, and pitching Aspora with 9 readers would use up a contact you'll want later. **Run outbound in two phases:**
+
+| Phase | Subscribers | Who to email | What you offer | What you get |
+|---|---|---|---|---|
+| **1. Grow** (now) | 9 → ~1,000 | NRI tax CAs, property managers and advisors; NRI fintechs' content teams; UAE and US Indian community groups | A free, credited expert feature or co-written guide in an issue that they share with their clients or members | Distribution to their audience, plus credibility |
+| **2. Monetize** | 1,000+ with a strong open rate | The sponsor list in section 2 | Paid placements with real numbers | Revenue |
+
+Phase 1 is still B2B outreach to businesses and community organizers, not to individual NRIs, so it's legitimate cold email.
+
+**Grow faster alongside outbound (no Pipewright needed):**
+- Turn on beehiiv's recommendations network and swap recommendations with other finance newsletters of similar size.
+- Put a subscribe CTA in Finostock's own channels, website and WhatsApp.
+- Post each issue's most useful tip on LinkedIn, and in Indian-expat groups in Dubai and the US where the group rules allow it.
+- Write evergreen issues such as "NRE vs NRO in 2026" and "Selling property in India as an NRI: the TDS trap". These are also what partners will want to share.
+
+**Pipewright settings for Phase 1:** in the ICP JSON, set `buyer_titles` to `["Founder", "Partner (CA firm)", "Content / Community Lead", "Community Organizer"]` and add the value prop "Free credited feature in a newsletter for NRIs in the UAE, US and India".
 
 ## 1. ICP (paste into "Edit as JSON")
 
@@ -51,27 +70,45 @@ _Manual run of Pipewright's steps, September 2026. The newsletter's own descript
 
 ## 3. Draft emails for review
 
-Fill in the `[ ]` numbers. Sponsors always ask for subscriber count, open rate and reader countries.
+### Phase 1: partner emails (send now)
+
+**To the founder or a partner at an NRI tax or legal firm (for example India For NRI).** Subject: *nri tax feature idea*
+> Hi [Name],
+>
+> I write The Rupee Bridge, a free 5-minute newsletter for NRIs in the UAE, US and India who manage money across two countries.
+>
+> I'm planning an issue on [NRI capital gains / TDS when selling property] and would love to feature your team as the expert, with your name and firm credited and a link to your NRI services.
+>
+> In return, would you share the issue with your NRI clients? Happy to send the draft for your review first.
+
+**To the content or community lead at an NRI fintech (for example SBNRI, iNRI or Belong).** Subject: *co-written guide for nris*
+> Hi [Name],
+>
+> I noticed [company] publishes a lot of NRI money content. I run The Rupee Bridge, a new free newsletter for NRIs in the UAE, US and India.
+>
+> Would you co-write one guide with me, for example "[NRE vs NRO in 2026]"? You'd get the expert byline and a link, and we'd both share it with our audiences.
+>
+> No cost. I'm building a small group of founding partners.
+
+**To an Indian community association or group organizer in the UAE or US.** Subject: *free money guide for your members*
+> Hi [Name],
+>
+> I write The Rupee Bridge, a free 5-minute read for NRIs on accounts, taxes, property and moving back.
+>
+> Could I share a one-page "[NRI money checklist for 2026]" with your members, free and with no sales pitch? If it's useful, members can subscribe for more.
+
+Follow-ups (+4 and +10 days): share the draft or a finished sample issue. Then close the loop politely.
+
+### Phase 2: sponsor email (keep for when you reach 1,000+)
 
 **To the growth or partnerships lead at Aspora.** Subject: *nri readers for aspora*
 > Hi [Name],
 >
 > I noticed Aspora is expanding into the US, Canada, Australia and Singapore after the Series B. I write The Rupee Bridge, a free 5-minute read for NRIs managing money across two countries: accounts, taxes, property and retirement.
 >
-> Our [X] readers open at [Y]%, mostly in [countries], and they're reading about exactly the decisions Aspora helps with.
+> Our [X] readers open at [Y]%, mostly in the UAE, US and India, and they're reading about exactly the decisions Aspora helps with.
 >
 > Would a test sponsorship in one issue be worth a look? Happy to send the media kit.
-
-**To the founder of iNRI.** Subject: *sponsoring the rupee bridge*
-> Hi [Name],
->
-> iNRI's mix of investing, tax filing and money management maps almost one-to-one onto what The Rupee Bridge covers for NRIs each week.
->
-> We're a free 5-minute newsletter with [X] NRI readers and a [Y]% open rate. For an early-stage team, a single sponsored slot is usually cheaper per sign-up than paid social.
->
-> Want me to send options, including a free first placement to test response?
-
-Follow-ups (+3 and +7 days): share one past issue as a sample. Then close the loop by asking who handles partnerships.
 
 ## 4. CSV to import into Pipewright
 
