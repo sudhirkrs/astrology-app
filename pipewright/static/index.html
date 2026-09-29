@@ -133,7 +133,7 @@ async function busy(btn, fn){ btn.disabled=true; try{ await fn(); } catch(e){ to
 async function loadMeta(){
   const m = await api("/api/meta");
   $("mode").textContent = (m.agent === "claude" ? "Claude agent" : "Demo agent") + (m.dry_run ? " · dry-run outbox" : " · live SMTP");
-  $("sendHint").textContent = m.dry_run ? "Dry-run: emails are written to outbox.jsonl until you configure SMTP for your own mailbox." : "Live: emails go out through your SMTP mailbox, within the warm-up ramp.";
+  $("sendHint").textContent = m.dry_run ? "Dry-run: approved emails are marked sent (dry_run) but not delivered until SMTP for your own mailbox is configured." : "Live: emails go out through your SMTP mailbox, within the warm-up ramp.";
 }
 async function loadCampaigns(){
   const list = await api("/api/campaigns");
