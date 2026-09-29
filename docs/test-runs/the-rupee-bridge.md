@@ -122,3 +122,23 @@ Instarem,https://www.instarem.com,,,
 India For NRI,https://indiafornri.com,,,
 ```
 Add the growth or partnerships contact's name and email for each (from LinkedIn or the company site) before drafting in Pipewright. Pipewright only guesses an email when it has a name.
+
+## 5. Tax-firm contacts for Phase 1 (found September 2026)
+
+Ready to import: [`rupee-bridge-tax-firms.csv`](rupee-bridge-tax-firms.csv). Only emails that the firms publish themselves are included. Nothing was guessed.
+
+| Firm | Contact | Email | Pipewright check | Source |
+|---|---|---|---|---|
+| S Lohia & Associates (Noida/Delhi) | Sulabh Lohia, founder | sulabhlohia@slohia.com | valid (MX ok) | [slohia.com/contact](https://www.slohia.com/contact/) |
+| R Pareva & Company (Delhi) | CA Rahul Pareva, founder | rahul@rpareva.com | valid | [rpareva.com founder page](https://www.rpareva.com/meet-the-founder) |
+| Vidhu Duggal & Co. | Vidhu Duggal | vidhu@vidhuduggalandco.com | valid | [NRI services page](https://www.vidhuduggalandco.com/services/nri-tax-consultant-india) |
+| India For NRI (Delhi, London) | Sidhant Agarwal (CA), founder; co-founder Sanyam | not published. Use the [contact form](https://indiafornri.com/contactus) or +91-9560020722 | – | [About](https://indiafornri.com/aboutus) |
+| Dinesh Aarjav & Associates (Delhi) | CA Dinesh Jain, founder and mentor | not shown in search. Check the [contact page](https://www.dineshaarjav.com/contact) | – | [About](https://www.dineshaarjav.com/about) |
+| CA for NRI / Zenify Consultancy | CA Ajay R. Vaswani | hidden on the site. Check [cafornri.com](https://cafornri.com/about-us/) | – | [About](https://cafornri.com/about-us/) |
+| RVG Chartered Accountants (Dubai) | no name found | use the site contact | – | [NRI taxation in Dubai](https://rvguae.com/nri-taxation-services-in-dubai/) |
+
+Notes:
+- **nritaxservice.in has the same phone number as Sulabh Lohia** (+91 9811353219), so it's likely the same group. Email only one of them.
+- Generic inboxes (help@slohia.com, info@rpareva.com, info@nritaxservice.in) are fallbacks. Personal addresses get more replies.
+- Several firms (CA for NRI, India For NRI) run NRI webinars and masterclasses. Offering to feature one of those sessions in an issue is a warm opener.
+- Rows without an email import as "missing". Add an email in the app once you find one, and Pipewright re-checks it.
