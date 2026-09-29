@@ -141,4 +141,4 @@ Notes:
 - **nritaxservice.in has the same phone number as Sulabh Lohia** (+91 9811353219), so it's likely the same group. Email only one of them.
 - Generic inboxes (help@slohia.com, info@rpareva.com, info@nritaxservice.in) are fallbacks. Personal addresses get more replies.
 - Several firms (CA for NRI, India For NRI) run NRI webinars and masterclasses. Offering to feature one of those sessions in an issue is a warm opener.
-- Rows without an email import as "missing". Add an email in the app once you find one, and Pipewright re-checks it.
+- For rows without an email, Pipewright guesses one from the name (for example sidhant.agarwal@indiafornri.com) and marks it **unknown**. Treat these as guesses: confirm them through the firm's contact page before approving, or replace them in the app.
