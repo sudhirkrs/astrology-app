@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipewright</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1b1b1f;--muted:#6b6b73;--line:#e3e3e0;--accent:#2d5bff;--ok:#1a7f4b;--warn:#b25e00;--bad:#c0322b;--chip:#eef1ff}
+@media (prefers-color-scheme:dark){:root{--bg:#121214;--card:#1c1c20;--ink:#ececf0;--muted:#9a9aa3;--line:#2e2e34;--accent:#7b98ff;--ok:#4cc38a;--warn:#f0a44b;--bad:#ff6b61;--chip:#26294a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;gap:1rem;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:2}
+header b{font-size:17px}.pill{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--chip);color:var(--accent)}
+main{max-width:1000px;margin:0 auto;padding:16px}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+h2{margin:0 0 4px;font-size:17px}h2 small{color:var(--muted);font-weight:400;font-size:13px;margin-left:6px}
+p.hint{color:var(--muted);margin:0 0 12px;font-size:13px}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 2px}
+input,textarea,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:80px;resize:vertical}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 12px}
+button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}button:disabled{opacity:.5;cursor:wait}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.chips span{display:inline-block;background:var(--chip);border-radius:6px;padding:1px 8px;margin:2px 4px 2px 0;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
+.tablewrap{overflow-x:auto}
+.msg{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px}
+.msg .meta{font-size:12px;color:var(--muted)}.warn{color:var(--warn);font-size:12px}
+.s-valid,.s-approved,.s-sent,.s-interested{color:var(--ok)}.s-invalid,.s-rejected,.s-unsubscribed{color:var(--bad)}.s-risky,.s-pending_review{color:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:10px}.stat b{display:block;font-size:22px}.stat span{font-size:12px;color:var(--muted)}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;display:none;max-width:90vw}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header><b>Pipewright</b><span id="mode" class="pill"></span><select id="campaignPick" style="max-width:220px"></select></header>
+<main>
+  <section id="s1">
+    <h2>1 · Describe what you sell <small>the agent researches your market</small></h2>
+    <p class="hint">A website URL or one sentence is enough. The agent builds your ideal customer profile, and you can edit it before anything else happens.</p>
+    <div class="grid">
+      <div><label>Website</label><input id="website" placeholder="https://yourcompany.com"></div>
+      <div><label>Company name</label><input id="sender_company"></div>
+    </div>
+    <label>What you sell and who buys it</label><textarea id="description" placeholder="We help Series A SaaS companies book demos without hiring SDRs"></textarea>
+    <div class="grid">
+      <div><label>Your name</label><input id="sender_name"></div>
+      <div><label>Sending mailbox (your own)</label><input id="sender_email" placeholder="you@yourcompany.com"></div>
+      <div><label>Booking link</label><input id="booking_link" placeholder="https://cal.com/you"></div>
+      <div><label>Postal address (legally required in footer)</label><input id="postal_address"></div>
+      <div><label>Daily send cap</label><input id="daily_cap" type="number" value="30"></div>
+      <div><label>Mailbox age (days) for warm-up ramp</label><input id="mailbox_age_days" type="number" value="0"></div>
+      <div><label>CRM webhook (optional)</label><input id="crm_webhook" placeholder="https://hooks.zapier.com/..."></div>
+      <div><label>Approval mode</label><select id="autopilot"><option value="false">Review every email (default)</option><option value="true">Autopilot for fit score ≥ 85 and clean copy</option></select></div>
+    </div>
+    <div class="row"><button class="primary" id="createBtn">Build my ICP</button></div>
+  </section>
+
+  <div id="workspace" class="hidden">
+    <section>
+      <h2>ICP <small>edit anything that looks off</small></h2>
+      <div id="icp"></div>
+      <div class="row"><button id="editIcpBtn">Edit as JSON</button></div>
+      <textarea id="icpJson" class="hidden" style="min-height:260px;font-family:ui-monospace,monospace;font-size:12px"></textarea>
+      <div class="row hidden" id="icpSaveRow"><button class="primary" id="saveIcpBtn">Save ICP</button></div>
+    </section>
+
+    <section>
+      <h2>2 · Prospects</h2>
+      <p class="hint">AI research finds companies that show buying signals now. Or bring your own list (CSV with columns company, website, contact_name, contact_title, email).</p>
+      <div class="row"><input id="discoverCount" type="number" value="10" style="width:90px"><button class="primary" id="discoverBtn">Find prospects</button>
+        <button id="csvToggle">Import CSV</button><a id="exportLink" href="#"><button>Export CSV</button></a></div>
+      <div id="csvBox" class="hidden"><textarea id="csvText" placeholder="company,website,contact_name,contact_title,email"></textarea><div class="row"><button id="csvBtn">Import</button></div></div>
+      <div class="tablewrap"><table id="prospects"></table></div>
+    </section>
+
+    <section>
+      <h2>3 · Review queue <small>nothing is sent without approval unless you turn on autopilot</small></h2>
+      <div class="row"><button class="primary" id="draftBtn">Write emails for new prospects</button>
+        <select id="queueFilter" style="width:auto"><option value="">All</option><option value="pending_review" selected>Pending review</option><option value="approved">Approved</option><option value="sent">Sent</option></select></div>
+      <div id="queue"></div>
+    </section>
+
+    <section>
+      <h2>4 · Send &amp; results</h2>
+      <p class="hint" id="sendHint"></p>
+      <div class="row"><button class="primary" id="sendBtn">Send what's due today</button></div>
+      <div class="stats" id="stats" style="margin-top:12px"></div>
+      <div class="tablewrap"><table id="ledger" style="margin-top:12px"></table></div>
+    </section>
+
+    <section>
+      <h2>5 · Replies</h2>
+      <p class="hint">Paste a reply (or connect your inbox forwarding to POST /api/campaigns/:id/replies). The agent classifies it, stops the sequence and drafts a response for you to approve.</p>
+      <div class="grid"><div><label>From</label><input id="replyFrom"></div></div>
+      <label>Reply text</label><textarea id="replyText"></textarea>
+      <div class="row"><button class="primary" id="replyBtn">Triage reply</button></div>
+      <div id="replyOut"></div>
+    </section>
+  </div>
+</main>
+<div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+let cid = null;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(t){ const el=$("toast"); el.textContent=t; el.style.display="block"; clearTimeout(el._t); el._t=setTimeout(()=>el.style.display="none",3500); }
+async function api(path, opts={}){
+  const r = await fetch(path, {headers:{"Content-Type":"application/json"}, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined});
+  const data = await r.json().catch(()=>({}));
+  if(!r.ok){ throw new Error(data.detail || r.statusText); }
+  return data;
+}
+async function busy(btn, fn){ btn.disabled=true; try{ await fn(); } catch(e){ toast(e.message); } finally{ btn.disabled=false; } }
+
+async function loadMeta(){
+  const m = await api("/api/meta");
+  $("mode").textContent = (m.agent === "claude" ? "Claude agent" : "Demo agent") + (m.dry_run ? " · dry-run outbox" : " · live SMTP");
+  $("sendHint").textContent = m.dry_run ? "Dry-run: emails are written to outbox.jsonl until you configure SMTP for your own mailbox." : "Live: emails go out through your SMTP mailbox, within the warm-up ramp.";
+}
+async function loadCampaigns(){
+  const list = await api("/api/campaigns");
+  $("campaignPick").innerHTML = `<option value="">+ New campaign</option>` + list.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  if(cid) $("campaignPick").value = cid;
+}
+$("campaignPick").onchange = e => openCampaign(e.target.value ? +e.target.value : null);
+
+async function openCampaign(id){
+  cid = id;
+  $("workspace").classList.toggle("hidden", !id);
+  $("s1").classList.toggle("hidden", !!id);
+  if(!id) return;
+  $("exportLink").href = `/api/campaigns/${id}/export.csv`;
+  await Promise.all([renderIcp(), renderProspects(), renderQueue(), renderStats()]);
+}
+
+$("createBtn").onclick = e => busy(e.target, async () => {
+  const body = {};
+  for (const k of ["website","description","sender_company","sender_name","sender_email","booking_link","postal_address","crm_webhook"]) body[k] = $(k).value.trim();
+  body.daily_cap = +$("daily_cap").value; body.mailbox_age_days = +$("mailbox_age_days").value; body.autopilot = $("autopilot").value === "true";
+  toast("Researching your market…");
+  const c = await api("/api/campaigns", {method:"POST", body});
+  await loadCampaigns(); await openCampaign(c.id);
+});
+
+async function renderIcp(){
+  const c = await api(`/api/campaigns/${cid}`); const i = c.icp;
+  const chips = xs => `<div class="chips">${xs.map(x=>`<span>${esc(x)}</span>`).join("")}</div>`;
+  $("icp").innerHTML = `<p>${esc(i.product_summary)}</p>
+    <div class="grid"><div><label>Industries</label>${chips(i.target_industries)}</div><div><label>Buyer titles</label>${chips(i.buyer_titles)}</div>
+    <div><label>Company size</label>${chips([i.company_size])}</div><div><label>Geographies</label>${chips(i.geographies)}</div></div>
+    <label>Buying signals</label>${chips(i.buying_signals)}<label>Pain points</label>${chips(i.pain_points)}<label>Disqualifiers</label>${chips(i.disqualifiers)}`;
+  $("icpJson").value = JSON.stringify(i, null, 2);
+}
+$("editIcpBtn").onclick = () => { $("icpJson").classList.toggle("hidden"); $("icpSaveRow").classList.toggle("hidden"); };
+$("saveIcpBtn").onclick = e => busy(e.target, async () => {
+  await api(`/api/campaigns/${cid}`, {method:"PATCH", body:{icp: JSON.parse($("icpJson").value)}}); await renderIcp(); toast("ICP saved");
+});
+
+async function renderProspects(){
+  const ps = await api(`/api/campaigns/${cid}/prospects`);
+  $("prospects").innerHTML = `<tr><th>Company</th><th>Contact</th><th>Email</th><th>Fit</th><th>Why / signals</th><th>Status</th></tr>` +
+    ps.map(p=>`<tr><td><a href="${esc(p.website)}" target="_blank" rel="noopener">${esc(p.company)}</a></td>
+      <td>${esc(p.contact_name)}<br><small>${esc(p.contact_title)}</small></td>
+      <td>${esc(p.email)}<br><small class="s-${esc(p.email_status)}">${esc(p.email_status)}</small></td>
+      <td>${p.fit_score}</td><td>${esc(p.why_fit)}<br><small>${esc((p.signals||[]).join(" · "))}</small></td>
+      <td class="s-${esc(p.status)}">${esc(p.status)}</td></tr>`).join("");
+}
+$("discoverBtn").onclick = e => busy(e.target, async () => {
+  toast("Searching the web for prospects…");
+  const r = await api(`/api/campaigns/${cid}/prospects/discover`, {method:"POST", body:{count:+$("discoverCount").value}});
+  toast(`${r.length} new prospects`); await renderProspects(); await renderStats();
+});
+$("csvToggle").onclick = () => $("csvBox").classList.toggle("hidden");
+$("csvBtn").onclick = e => busy(e.target, async () => {
+  const r = await api(`/api/campaigns/${cid}/prospects/import`, {method:"POST", body:{csv:$("csvText").value}});
+  toast(`Imported ${r.length}`); await renderProspects();
+});
+
+async function renderQueue(){
+  const f = $("queueFilter").value;
+  const ms = await api(`/api/campaigns/${cid}/messages` + (f ? `?status=${f}` : ""));
+  $("queue").innerHTML = ms.length ? ms.map(m=>`<div class="msg" data-id="${m.id}">
+    <div class="meta">${esc(m.kind)}${m.kind==="followup" ? ` #${m.step} · +${m.wait_days}d` : ""} → <b>${esc(m.contact_name||"")}</b> ${esc(m.email)} · ${esc(m.company)} · fit ${m.fit_score} · <span class="s-${esc(m.status)}">${esc(m.status)}</span></div>
+    ${m.hook ? `<div class="meta">Hook: ${esc(m.hook)}</div>` : ""}
+    <input class="subj" value="${esc(m.subject)}" style="margin-top:6px">
+    <textarea class="body" style="margin-top:6px;min-height:130px">${esc(m.body)}</textarea>
+    ${(m.warnings||[]).map(w=>`<div class="warn">⚠ ${esc(w)}</div>`).join("")}
+    ${m.status==="sent" ? "" : `<div class="row"><button class="primary act" data-a="approve">Approve${m.kind==="initial"?" sequence":""}</button><button class="act" data-a="save">Save edits</button><button class="act" data-a="reject">Reject</button></div>`}
+  </div>`).join("") : `<p class="hint">Nothing here.</p>`;
+}
+$("queueFilter").onchange = renderQueue;
+$("queue").onclick = e => {
+  const b = e.target.closest(".act"); if(!b) return;
+  const card = b.closest(".msg"), id = card.dataset.id;
+  busy(b, async () => {
+    await api(`/api/messages/${id}`, {method:"PATCH", body:{subject: card.querySelector(".subj").value, body: card.querySelector(".body").value}});
+    if (b.dataset.a !== "save") await api(`/api/messages/${id}/review`, {method:"POST", body:{approve: b.dataset.a === "approve"}});
+    toast(b.dataset.a === "save" ? "Saved" : b.dataset.a === "approve" ? "Approved" : "Rejected");
+    await renderQueue(); await renderProspects();
+  });
+};
+$("draftBtn").onclick = e => busy(e.target, async () => {
+  toast("Writing personalized emails…");
+  const r = await api(`/api/campaigns/${cid}/drafts`, {method:"POST", body:{count:25}});
+  toast(`${r.length} sequences drafted`); await renderQueue(); await renderProspects(); await renderStats();
+});
+
+async function renderStats(){
+  const s = await api(`/api/campaigns/${cid}/stats`);
+  const tile = (v,l) => `<div class="stat"><b>${v ?? "-"}</b><span>${l}</span></div>`;
+  $("stats").innerHTML = tile(s.prospects,"prospects")+tile(s.contacted,"contacted")+tile(s.replied,"replied")+tile(s.interested,"interested")
+    + tile((s.reply_rate*100).toFixed(1)+"%","reply rate")+tile(s.credits_used,"credits used")+tile(s.credits_per_interested_lead,"credits / interested lead");
+  $("ledger").innerHTML = `<tr><th>Credit usage</th><th>Events</th><th>Credits</th></tr>` + s.ledger.map(l=>`<tr><td>${esc(l.action)}</td><td>${l.events}</td><td>${l.credits}</td></tr>`).join("");
+}
+$("sendBtn").onclick = e => busy(e.target, async () => {
+  const r = await api(`/api/campaigns/${cid}/send`, {method:"POST"});
+  toast(`Sent ${r.sent}${r.dry_run ? " (dry-run)" : ""} · ${r.remaining_today} left today`);
+  await renderQueue(); await renderProspects(); await renderStats();
+});
+$("replyBtn").onclick = e => busy(e.target, async () => {
+  const r = await api(`/api/campaigns/${cid}/replies`, {method:"POST", body:{from_email:$("replyFrom").value, text:$("replyText").value}});
+  $("replyOut").innerHTML = `<div class="msg"><div class="meta">Intent: <b>${esc(r.analysis.intent)}</b> · prospect now <b>${esc(r.prospect.status)}</b></div>
+    <p>${esc(r.analysis.summary)}</p>${r.draft_reply ? `<p class="hint">Suggested reply added to the review queue.</p>` : ""}</div>`;
+  await renderQueue(); await renderProspects(); await renderStats();
+});
+
+loadMeta(); loadCampaigns();
+</script>
+</body>
+</html>
