@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from . import auth
-from .agent import MockAgent, get_agent
+from .agent import AgentError, MockAgent, get_agent
 from .auth import current_user
 from .db import DB
 from .service import CREDITS, Pipewright, WorkflowError
@@ -75,6 +75,8 @@ def create_app(pw: Pipewright | None = None) -> FastAPI:
             return fn(*args, **kwargs)
         except WorkflowError as e:
             raise HTTPException(400, str(e)) from e
+        except AgentError as e:
+            raise HTTPException(502, str(e)) from e
 
     @app.get("/", include_in_schema=False)
     def index():
@@ -93,7 +95,7 @@ def create_app(pw: Pipewright | None = None) -> FastAPI:
         except Exception:
             db_ok = False
         return {"ok": db_ok, "db": "postgres" if pw.db.pg else "sqlite",
-                "agent": "demo" if isinstance(pw.agent, MockAgent) else "claude", "auth": auth.enabled()}
+                "agent": pw.agent.name, "auth": auth.enabled()}
 
     @app.get("/api/config")
     def config():
@@ -102,7 +104,7 @@ def create_app(pw: Pipewright | None = None) -> FastAPI:
 
     @app.get("/api/meta")
     def meta(user: dict = Depends(current_user)):
-        return {"agent": "demo" if isinstance(pw.agent, MockAgent) else "claude",
+        return {"agent": pw.agent.name,
                 "dry_run": pw.mailer.dry_run, "credits": CREDITS, "user": user["email"]}
 
     @app.get("/api/campaigns")

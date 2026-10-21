@@ -8,6 +8,7 @@ from pipewright import deliverability as dv
 from pipewright.agent import MockAgent
 from pipewright.db import DB
 from pipewright.main import create_app
+from pipewright.schemas import ProspectList
 from pipewright.service import Pipewright, WorkflowError, email_from_token, unsubscribe_token
 
 
@@ -179,3 +180,65 @@ def test_cron_requires_secret(tmp_path, monkeypatch):
     monkeypatch.setenv("CRON_SECRET", "s3cret")
     assert client.get("/api/cron/send").status_code == 401
     assert client.get("/api/cron/send", headers={"Authorization": "Bearer s3cret"}).json() == {"results": []}
+
+
+# -- agent selection and the Gemini backend ----------------------------------
+
+def test_get_agent_picks_backend_from_env(monkeypatch):
+    from pipewright import agent as ag
+
+    for k in ("PIPEWRIGHT_MOCK", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    assert ag.get_agent().name == "demo"
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    assert ag.get_agent().name == "gemini"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    assert ag.get_agent().name == "claude"
+
+
+class FakeGemini:
+    """Stands in for genai.Client: research calls get text, schema calls get JSON."""
+
+    def __init__(self, error=None):
+        self.models, self.calls, self.error = self, [], error
+
+    def generate_content(self, model, contents, config):
+        from types import SimpleNamespace
+
+        from pipewright.agent import MockAgent
+
+        self.calls.append(config)
+        if self.error:
+            raise self.error
+        schema = config.response_schema
+        if schema is None:
+            return SimpleNamespace(text="research brief", parsed=None)
+        mock = MockAgent()
+        icp = mock.build_icp("https://acme.example", "AI SDR")
+        sample = {"ICP": icp, "ProspectList": ProspectList(prospects=mock.find_prospects(icp, 2, []))}[schema.__name__]
+        return SimpleNamespace(text=sample.model_dump_json(), parsed=None)
+
+
+def test_gemini_agent_researches_with_search_then_returns_schema():
+    from pipewright.agent import GeminiAgent
+
+    fake = FakeGemini()
+    agent = GeminiAgent(client=fake)
+    icp = agent.build_icp("https://acme.example", "AI SDR")
+    research, structured = fake.calls
+    assert research.tools and research.tools[0].google_search is not None
+    assert structured.response_schema.__name__ == "ICP" and not structured.tools
+    assert icp.buyer_titles
+    assert len(agent.find_prospects(icp, 2, [])) == 2
+
+
+def test_gemini_quota_error_reaches_user_as_502(tmp_path):
+    from google.genai import errors
+
+    from pipewright.agent import GeminiAgent
+
+    agent = GeminiAgent(client=FakeGemini(errors.APIError(429, {"error": {"message": "quota"}})))
+    client = TestClient(create_app(Pipewright(DB(str(tmp_path / "g.db")), agent, FakeMailer(), check_dns=False)))
+    r = client.post("/api/campaigns", json={"website": "https://acme.example", "description": "AI SDR"})
+    assert r.status_code == 502 and "quota" in r.json()["detail"]
+    assert client.get("/api/health").json()["agent"] == "gemini"

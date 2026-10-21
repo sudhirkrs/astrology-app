@@ -1,9 +1,11 @@
 """The AI side of Pipewright: ICP research, prospect discovery, copywriting, reply triage.
 
-Two backends share one interface:
+Three backends share one interface:
 
 * ``ClaudeAgent`` calls the Claude API (web search + web fetch for research,
   structured outputs for every result the app stores).
+* ``GeminiAgent`` calls the Gemini API (Google Search grounding + URL context
+  for research, JSON-schema output for every result the app stores).
 * ``MockAgent`` returns deterministic data so the product can be demoed and
   tested without an API key.
 """
@@ -28,11 +30,19 @@ from .schemas import (
 )
 
 MODEL = os.environ.get("PIPEWRIGHT_MODEL", "claude-opus-5-5")
+# "-latest" alias tracks Google's current Flash model, which the free tier covers.
+GEMINI_MODEL = os.environ.get("PIPEWRIGHT_GEMINI_MODEL", "gemini-flash-latest")
 
 T = TypeVar("T", bound=BaseModel)
 
 
+class AgentError(RuntimeError):
+    """The model call failed in a way worth showing to the user (quota, blocked prompt...)."""
+
+
 class Agent(Protocol):
+    name: str
+
     def build_icp(self, website: str, description: str) -> ICP: ...
     def find_prospects(self, icp: ICP, count: int, exclude: list[str]) -> list[ProspectCandidate]: ...
     def write_email(self, icp: ICP, sender: dict, prospect: dict) -> EmailDraft: ...
@@ -61,6 +71,8 @@ For unsubscribe or not_interested, suggested_reply must be empty: the prospect i
 
 
 class ClaudeAgent:
+    name = "claude"
+
     def __init__(self, client=None, model: str = MODEL):
         import anthropic
 
@@ -162,6 +174,56 @@ class ClaudeAgent:
         )
 
 
+class GeminiAgent(ClaudeAgent):
+    """Same prompts and steps as ClaudeAgent; only the two plumbing calls differ."""
+
+    name = "gemini"
+
+    def __init__(self, client=None, model: str = GEMINI_MODEL):
+        from google import genai
+        from google.genai import types
+
+        self.types = types
+        # Free-tier keys hit per-minute limits quickly; back off and retry instead of failing the request.
+        retry = types.HttpRetryOptions(attempts=6, initial_delay=5, max_delay=60, http_status_codes=[429, 500, 503, 504])
+        self.client = client or genai.Client(
+            api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
+            http_options=types.HttpOptions(retry_options=retry),
+        )
+        self.model = model
+
+    def _generate(self, prompt: str, config):
+        from google.genai import errors
+
+        try:
+            return self.client.models.generate_content(model=self.model, contents=prompt, config=config)
+        except errors.APIError as e:
+            if e.code == 429:
+                raise AgentError("Gemini rate limit or daily quota reached. Wait a minute and try again.") from e
+            raise AgentError(f"Gemini API error {e.code}: {e.message}") from e
+
+    def _research(self, task: str) -> str:
+        t = self.types
+        resp = self._generate(task, t.GenerateContentConfig(
+            system_instruction=RESEARCH_SYSTEM,
+            tools=[t.Tool(google_search=t.GoogleSearch()), t.Tool(url_context=t.UrlContext())],
+        ))
+        if not resp.text:
+            raise AgentError("Gemini returned no research (the request may have been blocked).")
+        return resp.text
+
+    def _structured(self, system: str, prompt: str, schema: type[T], effort: str = "medium") -> T:
+        resp = self._generate(prompt, self.types.GenerateContentConfig(
+            system_instruction=system, response_mime_type="application/json", response_schema=schema,
+        ))
+        if isinstance(resp.parsed, schema):
+            return resp.parsed
+        try:
+            return schema.model_validate_json(resp.text or "")
+        except ValueError as e:
+            raise AgentError(f"Gemini did not return a valid {schema.__name__}.") from e
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -172,6 +234,8 @@ def _domain(url: str) -> str:
 
 class MockAgent:
     """Deterministic stand-in used for demos and tests (no network, no API key)."""
+
+    name = "demo"
 
     SAMPLE = [
         ("Northwind Analytics", "northwind-analytics.example", "Priya Raman", "VP Sales"),
@@ -261,9 +325,11 @@ class MockAgent:
 
 
 def get_agent() -> Agent:
-    """Use Claude when credentials are configured, otherwise the offline demo agent."""
+    """Claude if its credentials are set, else Gemini if a Gemini key is set, else the offline demo agent."""
     if os.environ.get("PIPEWRIGHT_MOCK") == "1":
         return MockAgent()
     if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
         return ClaudeAgent()
+    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+        return GeminiAgent()
     return MockAgent()

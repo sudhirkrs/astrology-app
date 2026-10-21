@@ -45,6 +45,8 @@ Tests: `.venv/bin/pip install -r requirements-dev.txt && .venv/bin/python -m pyt
 | Env var | Default | Purpose |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | – | Enables the Claude agent (otherwise demo mode) |
+| `GEMINI_API_KEY` | – | Enables the Gemini agent when no Anthropic key is set (free key: aistudio.google.com/apikey) |
+| `PIPEWRIGHT_GEMINI_MODEL` | `gemini-flash-latest` | Gemini model to use |
 | `PIPEWRIGHT_MODEL` | `claude-opus-5-5` | Model for research, copy and triage |
 | `PIPEWRIGHT_MOCK` | – | `1` forces demo mode |
 | `PIPEWRIGHT_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` | – | Your mailbox. Unset means dry-run to `PIPEWRIGHT_OUTBOX` |
