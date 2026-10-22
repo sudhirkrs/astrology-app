@@ -36,7 +36,7 @@ MODEL = os.environ.get("PIPEWRIGHT_MODEL", "claude-opus-5-5")
 # so a key that is refused on one Flash model often works on another.
 GEMINI_MODELS = os.environ.get(
     "PIPEWRIGHT_GEMINI_MODEL",
-    "gemini-flash-latest,gemini-3.5-flash,gemini-flash-lite-latest,gemini-3.1-flash-lite",
+    "gemini-3.8-flash,gemini-flash-latest,gemini-3.5-flash,gemini-flash-lite-latest",
 )
 
 log = logging.getLogger("pipewright.agent")
