@@ -36,7 +36,7 @@ MODEL = os.environ.get("PIPEWRIGHT_MODEL", "claude-opus-5-5")
 # so a key that is refused on one Flash model often works on another.
 GEMINI_MODELS = os.environ.get(
     "PIPEWRIGHT_GEMINI_MODEL",
-    "gemini-2.5-flash,gemini-flash-latest,gemini-2.5-flash-lite,gemini-flash-lite-latest",
+    "gemini-flash-latest,gemini-flash-lite-latest",
 )
 
 log = logging.getLogger("pipewright.agent")
@@ -236,11 +236,28 @@ class GeminiAgent(ClaudeAgent):
                     self.models.insert(0, model)
                     log.warning("gemini switched to model=%s", model)
                 return resp
-        raise AgentError(
-            "Gemini refused every model for this key (" + ", ".join(tried) + "). "
-            "Check your limits at https://aistudio.google.com/rate-limit; "
-            "free-tier quota may be used up for today or unavailable for these models."
-        )
+        raise AgentError(f"Gemini refused every model for this key ({', '.join(tried)}). {self._diagnose(config)}")
+
+    def _diagnose(self, config) -> str:
+        """Work out why everything was refused, so the user knows which fix applies. Logs what the key can see."""
+        try:
+            names = [m.name.removeprefix("models/") for m in self.client.models.list()
+                     if "generateContent" in (getattr(m, "supported_actions", None) or [])]
+            log.warning("gemini models visible to this key: %s", ", ".join(names) or "none")
+        except Exception as e:  # listing is best-effort
+            log.warning("gemini model listing failed: %s", e)
+        if config is not None and getattr(config, "tools", None):
+            try:
+                self.client.models.generate_content(model=self.models[0], contents="Reply with OK.")
+            except Exception as e:
+                log.warning("gemini plain call (no tools) also failed: %s", e)
+            else:
+                log.warning("gemini plain call works; only Google Search grounding is refused")
+                return ("Plain Gemini calls work, but your free quota does not cover Google Search grounding, "
+                        "which prospect research needs. Enable billing on the key's Google Cloud project, "
+                        "or use an Anthropic key.")
+        return ("This key has no usable free-tier quota. Check https://aistudio.google.com/rate-limit; "
+                "a key from a new Google Cloud project, or billing on this one, fixes it.")
 
     def _research(self, task: str) -> str:
         t = self.types
