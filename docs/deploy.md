@@ -31,7 +31,7 @@ Vercel Cron 03:30 UTC daily → /api/cron/send (Bearer CRON_SECRET)
    | `CRON_SECRET` | Vercel sends it to the daily cron endpoint |
    | `PIPEWRIGHT_BASE_URL` | Public URL, used in unsubscribe links |
    | `ANTHROPIC_API_KEY` | Turns on the real Claude agent. Without it the app runs the demo agent |
-   | `GEMINI_API_KEY` | Turns on the Gemini agent instead (free key from aistudio.google.com/apikey). Used only when `ANTHROPIC_API_KEY` is not set. `PIPEWRIGHT_GEMINI_MODEL` overrides the model (default `gemini-flash-latest`) |
+   | `GEMINI_API_KEY` | Turns on the Gemini agent instead (free key from aistudio.google.com/apikey). Used only when `ANTHROPIC_API_KEY` is not set. `PIPEWRIGHT_GEMINI_MODEL` sets the comma-separated models to try in order |
    | `PIPEWRIGHT_SMTP_HOST/PORT/USER/PASSWORD` | Optional: real sending from your mailbox. Without them, sends are dry-run |
 
 3. **Function region:** Settings → Functions → Region → **Mumbai (bom1)**. This keeps the app next to the database.

@@ -242,3 +242,23 @@ def test_gemini_quota_error_reaches_user_as_502(tmp_path):
     r = client.post("/api/campaigns", json={"website": "https://acme.example", "description": "AI SDR"})
     assert r.status_code == 502 and "quota" in r.json()["detail"]
     assert client.get("/api/health").json()["agent"] == "gemini"
+
+
+def test_gemini_falls_back_to_next_model_when_quota_is_zero():
+    from google.genai import errors
+
+    from pipewright.agent import GeminiAgent
+
+    class PerModel(FakeGemini):
+        def generate_content(self, model, contents, config):
+            self.calls.append(model)
+            if model == "no-free-tier":
+                raise errors.APIError(429, {"error": {"message": "You exceeded your current quota"}})
+            return FakeGemini.generate_content(self, model, contents, config)
+
+    fake = PerModel()
+    agent = GeminiAgent(client=fake, model="no-free-tier,works")
+    agent.build_icp("https://acme.example", "AI SDR")
+    assert fake.calls[:2] == ["no-free-tier", "works"]
+    assert agent.models[0] == "works"  # later calls skip the dead model
+    assert "no-free-tier" not in [c for c in fake.calls[2:] if isinstance(c, str)]

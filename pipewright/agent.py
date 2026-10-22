@@ -12,8 +12,10 @@ Three backends share one interface:
 
 from __future__ import annotations
 
+import logging
 import os
 import re
+import time
 from typing import Protocol, TypeVar
 from urllib.parse import urlparse
 
@@ -30,8 +32,14 @@ from .schemas import (
 )
 
 MODEL = os.environ.get("PIPEWRIGHT_MODEL", "claude-opus-5-5")
-# "-latest" alias tracks Google's current Flash model, which the free tier covers.
-GEMINI_MODEL = os.environ.get("PIPEWRIGHT_GEMINI_MODEL", "gemini-flash-latest")
+# Tried in order until one answers. Free-tier quotas differ per model (some have none),
+# so a key that is refused on one Flash model often works on another.
+GEMINI_MODELS = os.environ.get(
+    "PIPEWRIGHT_GEMINI_MODEL",
+    "gemini-2.5-flash,gemini-flash-latest,gemini-2.5-flash-lite,gemini-flash-lite-latest",
+)
+
+log = logging.getLogger("pipewright.agent")
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -178,29 +186,61 @@ class GeminiAgent(ClaudeAgent):
     """Same prompts and steps as ClaudeAgent; only the two plumbing calls differ."""
 
     name = "gemini"
+    MAX_WAIT = 20  # seconds we will wait out a per-minute limit before trying the next model
 
-    def __init__(self, client=None, model: str = GEMINI_MODEL):
+    def __init__(self, client=None, model: str = GEMINI_MODELS):
         from google import genai
         from google.genai import types
 
         self.types = types
-        # Free-tier keys hit per-minute limits quickly; back off and retry instead of failing the request.
-        retry = types.HttpRetryOptions(attempts=6, initial_delay=5, max_delay=60, http_status_codes=[429, 500, 503, 504])
+        retry = types.HttpRetryOptions(attempts=3, initial_delay=2, max_delay=10, http_status_codes=[500, 503, 504])
         self.client = client or genai.Client(
             api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
             http_options=types.HttpOptions(retry_options=retry),
         )
-        self.model = model
+        self.models = [m.strip() for m in model.split(",") if m.strip()]
+
+    @staticmethod
+    def _retry_delay(err) -> float | None:
+        """Seconds Google asks us to wait (RetryInfo), or None when the quota is simply exhausted or zero."""
+        details = (err.details or {}).get("error", {}).get("details", []) if isinstance(err.details, dict) else []
+        for d in details:
+            if str(d.get("@type", "")).endswith("RetryInfo"):
+                try:
+                    return float(str(d.get("retryDelay", "")).rstrip("s"))
+                except ValueError:
+                    return None
+        return None
 
     def _generate(self, prompt: str, config):
         from google.genai import errors
 
-        try:
-            return self.client.models.generate_content(model=self.model, contents=prompt, config=config)
-        except errors.APIError as e:
-            if e.code == 429:
-                raise AgentError("Gemini rate limit or daily quota reached. Wait a minute and try again.") from e
-            raise AgentError(f"Gemini API error {e.code}: {e.message}") from e
+        tried = []
+        for model in list(self.models):
+            for attempt in (0, 1):
+                try:
+                    resp = self.client.models.generate_content(model=model, contents=prompt, config=config)
+                except errors.APIError as e:
+                    delay = self._retry_delay(e) if e.code == 429 else None
+                    log.warning("gemini model=%s attempt=%d failed: %s %s (retry_delay=%s)",
+                                model, attempt, e.code, e.status, delay)
+                    if delay is not None and delay <= self.MAX_WAIT and attempt == 0:
+                        time.sleep(delay)
+                        continue
+                    if e.code in (429, 404, 403):  # no quota / not available for this key: try the next model
+                        tried.append(f"{model} ({e.code})")
+                        break
+                    raise AgentError(f"Gemini API error {e.code}: {e.message}") from e
+                if model != self.models[0]:  # remember what works so later calls skip the dead models
+                    self.models.remove(model)
+                    self.models.insert(0, model)
+                    log.warning("gemini switched to model=%s", model)
+                return resp
+        raise AgentError(
+            "Gemini refused every model for this key (" + ", ".join(tried) + "). "
+            "Check your limits at https://aistudio.google.com/rate-limit; "
+            "free-tier quota may be used up for today or unavailable for these models."
+        )
 
     def _research(self, task: str) -> str:
         t = self.types
