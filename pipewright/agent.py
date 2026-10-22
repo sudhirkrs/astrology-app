@@ -36,7 +36,7 @@ MODEL = os.environ.get("PIPEWRIGHT_MODEL", "claude-opus-5-5")
 # so a key that is refused on one Flash model often works on another.
 GEMINI_MODELS = os.environ.get(
     "PIPEWRIGHT_GEMINI_MODEL",
-    "gemini-flash-latest,gemini-flash-lite-latest",
+    "gemini-flash-latest,gemini-3.5-flash,gemini-flash-lite-latest,gemini-3.1-flash-lite",
 )
 
 log = logging.getLogger("pipewright.agent")
@@ -46,6 +46,10 @@ T = TypeVar("T", bound=BaseModel)
 
 class AgentError(RuntimeError):
     """The model call failed in a way worth showing to the user (quota, blocked prompt...)."""
+
+
+class QuotaRefused(AgentError):
+    """Every configured model refused this kind of request for lack of quota."""
 
 
 class Agent(Protocol):
@@ -183,10 +187,16 @@ class ClaudeAgent:
 
 
 class GeminiAgent(ClaudeAgent):
-    """Same prompts and steps as ClaudeAgent; only the two plumbing calls differ."""
+    """Same prompts and steps as ClaudeAgent; only the plumbing differs.
+
+    Free-tier keys often allow plain generation but not Google Search grounding, so research
+    degrades in tiers: search + URL reading, then URL reading only, then the model alone.
+    Prospect discovery without search proposes companies, then opens each homepage to verify it.
+    """
 
     name = "gemini"
     MAX_WAIT = 20  # seconds we will wait out a per-minute limit before trying the next model
+    TIERS = ("search", "urls", "plain")
 
     def __init__(self, client=None, model: str = GEMINI_MODELS):
         from google import genai
@@ -199,6 +209,7 @@ class GeminiAgent(ClaudeAgent):
             http_options=types.HttpOptions(retry_options=retry),
         )
         self.models = [m.strip() for m in model.split(",") if m.strip()]
+        self.tiers = list(self.TIERS)  # research tiers still believed to work for this key
 
     @staticmethod
     def _retry_delay(err) -> float | None:
@@ -222,8 +233,8 @@ class GeminiAgent(ClaudeAgent):
                     resp = self.client.models.generate_content(model=model, contents=prompt, config=config)
                 except errors.APIError as e:
                     delay = self._retry_delay(e) if e.code == 429 else None
-                    log.warning("gemini model=%s attempt=%d failed: %s %s (retry_delay=%s)",
-                                model, attempt, e.code, e.status, delay)
+                    log.warning("gemini model=%s tools=%s attempt=%d failed: %s %s (retry_delay=%s)",
+                                model, self._tool_names(config), attempt, e.code, e.status, delay)
                     if delay is not None and delay <= self.MAX_WAIT and attempt == 0:
                         time.sleep(delay)
                         continue
@@ -236,38 +247,40 @@ class GeminiAgent(ClaudeAgent):
                     self.models.insert(0, model)
                     log.warning("gemini switched to model=%s", model)
                 return resp
-        raise AgentError(f"Gemini refused every model for this key ({', '.join(tried)}). {self._diagnose(config)}")
+        raise QuotaRefused(
+            f"Gemini refused every model for this key ({', '.join(tried)}). The free-tier quota may be used up "
+            "for today (it resets at midnight Pacific time); see https://aistudio.google.com/rate-limit."
+        )
 
-    def _diagnose(self, config) -> str:
-        """Work out why everything was refused, so the user knows which fix applies. Logs what the key can see."""
-        try:
-            names = [m.name.removeprefix("models/") for m in self.client.models.list()
-                     if "generateContent" in (getattr(m, "supported_actions", None) or [])]
-            log.warning("gemini models visible to this key: %s", ", ".join(names) or "none")
-        except Exception as e:  # listing is best-effort
-            log.warning("gemini model listing failed: %s", e)
-        if config is not None and getattr(config, "tools", None):
-            try:
-                self.client.models.generate_content(model=self.models[0], contents="Reply with OK.")
-            except Exception as e:
-                log.warning("gemini plain call (no tools) also failed: %s", e)
-            else:
-                log.warning("gemini plain call works; only Google Search grounding is refused")
-                return ("Plain Gemini calls work, but your free quota does not cover Google Search grounding, "
-                        "which prospect research needs. Enable billing on the key's Google Cloud project, "
-                        "or use an Anthropic key.")
-        return ("This key has no usable free-tier quota. Check https://aistudio.google.com/rate-limit; "
-                "a key from a new Google Cloud project, or billing on this one, fixes it.")
+    @staticmethod
+    def _tool_names(config) -> str:
+        tools = getattr(config, "tools", None) or []
+        return "+".join(n for t in tools for n in ("google_search", "url_context") if getattr(t, n, None)) or "none"
 
-    def _research(self, task: str) -> str:
+    def _research_config(self, tier: str):
         t = self.types
-        resp = self._generate(task, t.GenerateContentConfig(
-            system_instruction=RESEARCH_SYSTEM,
-            tools=[t.Tool(google_search=t.GoogleSearch()), t.Tool(url_context=t.UrlContext())],
-        ))
-        if not resp.text:
-            raise AgentError("Gemini returned no research (the request may have been blocked).")
-        return resp.text
+        tools = {"search": [t.Tool(google_search=t.GoogleSearch()), t.Tool(url_context=t.UrlContext())],
+                 "urls": [t.Tool(url_context=t.UrlContext())], "plain": None}[tier]
+        return t.GenerateContentConfig(system_instruction=RESEARCH_SYSTEM, tools=tools)
+
+    _only: tuple[str, ...] | None = None
+
+    def _research(self, task: str, tiers: tuple[str, ...] = TIERS) -> str:
+        """Run research on the best tier this key allows; returns the brief."""
+        tiers = self._only or tiers
+        for tier in [x for x in self.tiers if x in tiers]:
+            try:
+                resp = self._generate(task, self._research_config(tier))
+            except QuotaRefused:
+                if tier == "plain":
+                    raise
+                self.tiers.remove(tier)
+                log.warning("gemini research tier %r refused for this key; falling back", tier)
+                continue
+            if not resp.text:
+                raise AgentError("Gemini returned no research (the request may have been blocked).")
+            return resp.text
+        raise QuotaRefused("Gemini refused every research mode for this key.")
 
     def _structured(self, system: str, prompt: str, schema: type[T], effort: str = "medium") -> T:
         resp = self._generate(prompt, self.types.GenerateContentConfig(
@@ -280,6 +293,47 @@ class GeminiAgent(ClaudeAgent):
         except ValueError as e:
             raise AgentError(f"Gemini did not return a valid {schema.__name__}.") from e
 
+    # -- prospect discovery without web search -------------------------------
+
+    def find_prospects(self, icp: ICP, count: int, exclude: list[str]) -> list[ProspectCandidate]:
+        if "search" in self.tiers:
+            self._only = ("search",)  # never let the search-based flow fall back to unverified research
+            try:
+                return super().find_prospects(icp, count, exclude)
+            except QuotaRefused:
+                if "search" in self.tiers:
+                    raise
+            finally:
+                self._only = None
+        # 1. Propose real companies the model knows, with homepages.
+        candidates = self._structured(
+            "You know a lot of real companies. Propose ones that match the ideal customer profile. "
+            "Only list companies you are confident exist, with their real official homepage URL. Never invent.",
+            f"{icp.model_dump_json(indent=2)}\n\nSkip these domains: {', '.join(exclude) or 'none'}.\n"
+            f"Propose {min(count * 2, 30)} candidate companies. Leave contact fields empty unless you are sure.",
+            ProspectList,
+        ).prospects
+        candidates = [c for c in candidates if c.website and _domain(c.website) not in exclude]
+        if not candidates:
+            return []
+        # 2. Open each homepage (URL context) to confirm it exists and gather current signals.
+        urls = "\n".join(f"- {c.company}: {c.website}" for c in candidates)
+        brief = self._research(
+            "Open each homepage below and its about/careers/news pages where linked. For each company, report "
+            "whether the site loaded and matches the company, what it sells, evidence of fit with this ICP, any "
+            "current buying signals (hiring, launches, funding) and any decision maker named on the site.\n"
+            f"ICP buyer titles: {icp.buyer_titles}\nICP: {icp.product_summary}; {icp.target_industries}\n\n{urls}",
+            tiers=("urls",),
+        ) if "urls" in self.tiers else ""
+        # 3. Keep only companies the brief confirmed.
+        verified = self._structured(
+            "You convert prospect research into a clean list. Include only companies whose homepage the brief "
+            "confirmed loaded and matches; drop every company the brief could not confirm. Never invent people.",
+            f"Research brief:\n{brief or '(website checks unavailable; keep only companies you are certain of)'}\n\n"
+            f"Candidates:\n{urls}\n\nReturn up to {count} verified prospects with fit_score 0-100.",
+            ProspectList,
+        )
+        return verified.prospects[:count]
 
 # ---------------------------------------------------------------------------
 

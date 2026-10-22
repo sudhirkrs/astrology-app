@@ -262,3 +262,28 @@ def test_gemini_falls_back_to_next_model_when_quota_is_zero():
     assert fake.calls[:2] == ["no-free-tier", "works"]
     assert agent.models[0] == "works"  # later calls skip the dead model
     assert "no-free-tier" not in [c for c in fake.calls[2:] if isinstance(c, str)]
+
+
+def test_gemini_without_search_quota_verifies_proposed_prospects():
+    from google.genai import errors
+
+    from pipewright.agent import GeminiAgent
+
+    class NoGrounding(FakeGemini):
+        def generate_content(self, model, contents, config):
+            tools = config.tools or []
+            if any(getattr(t, "google_search", None) for t in tools):
+                self.calls.append(("refused", model))
+                raise errors.APIError(429, {"error": {"message": "You exceeded your current quota"}})
+            if tools:  # URL-context research: the homepage check
+                self.calls.append(("urls", contents))
+            return FakeGemini.generate_content(self, model, contents, config)
+
+    fake = NoGrounding()
+    agent = GeminiAgent(client=fake, model="m1,m2")
+    icp = agent.build_icp("https://acme.example", "AI SDR")  # falls back to reading the site
+    assert "search" not in agent.tiers
+    prospects = agent.find_prospects(icp, 2, [])
+    assert len(prospects) == 2
+    url_checks = [c for c in fake.calls if isinstance(c, tuple) and c[0] == "urls"]
+    assert url_checks and "northwind-analytics.example" in url_checks[-1][1]  # homepages were opened
